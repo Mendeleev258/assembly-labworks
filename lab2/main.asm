@@ -35,6 +35,10 @@ main endp
 
 ; Input array length
 input_array_length proc
+    push bx
+    push cx
+    push dx
+    
     mov ah, 09h
     lea dx, msg_enter_length
     int 21h
@@ -45,11 +49,20 @@ input_array_length proc
     mov ah, 09h
     lea dx, newline
     int 21h
+    
+    pop dx
+    pop cx
+    pop bx
     ret
 input_array_length endp
 
 ; Input array elements
 input_array proc
+    push bx
+    push cx
+    push dx
+    push si
+    
     mov cx, array_length
     mov si, 0
     
@@ -67,11 +80,22 @@ input_loop:
     mov ah, 09h
     lea dx, newline
     int 21h
+    
+    pop si
+    pop dx
+    pop cx
+    pop bx
     ret
 input_array endp
 
 ; Print array
 print_array proc
+    push ax
+    push bx
+    push cx
+    push dx
+    push si
+    
     mov ah, 09h
     lea dx, msg_array
     int 21h
@@ -93,6 +117,12 @@ print_loop:
     mov ah, 09h
     lea dx, newline
     int 21h
+    
+    pop si
+    pop dx
+    pop cx
+    pop bx
+    pop ax
     ret
 print_array endp
 
@@ -200,74 +230,95 @@ print_digits:
     ret
 print_number endp
 
-; Check if signs alternate in array
+; Check if signs alternate in array 
 check_sign_alternation proc
+    ; Сохраняем ВСЕ регистры, которые будем использовать
     push bp
+    push si
+    push bx
+    push cx
+    push dx
     mov bp, sp
     
-    ; parameters:
-    ; [bp+4] = array address
-    ; [bp+6] = array length
+    ; Стек сейчас:
+    ; BP → [старый DX]    (2 байта)
+    ;     [старый CX]    (2 байта)
+    ;     [старый BX]    (2 байта)
+    ;     [старый SI]    (2 байта)
+    ;     [старый BP]    (2 байта)
+    ;     [адрес возврата] (2 байта) ← BP+10
+    ;     [адрес массива]  (2 байта) ← BP+12
+    ;     [длина массива]  (2 байта) ← BP+14
     
-    mov cx, [bp+6] ; array length
+    ; Получаем параметры
+    mov cx, [bp+14]   ; CX = длина массива
+    mov si, [bp+12]   ; SI = адрес массива
+    
+    ; Проверка особых случаев
     cmp cx, 1
-    jle yes_result ; array with 0 or 1 element always alternates
+    jle alternating_true   ; Массив из 0 или 1 элемента всегда чередуется
     
-    mov si, [bp+4] ; array address
-    
-    ; Get sign of first element
+    ; Получаем знак первого элемента
     mov ax, [si]
     call get_sign
-    mov bl, al ; previous sign in BL
+    mov bl, al             ; BL = предыдущий знак
     
-    add si, 2 ; move to next element
-    dec cx ; we'll check n-1 pairs
+    add si, 2              ; Переходим ко второму элементу
+    dec cx                 ; Проверяем n-1 пар
     
 check_loop:
-    mov ax, [si] ; load current element
+    ; Получаем знак текущего элемента
+    mov ax, [si]
     call get_sign
-    mov bh, al ; current sign in BH
+    mov bh, al             ; BH = текущий знак
     
-    ; Compare signs
+    ; Сравниваем знаки
     cmp bh, bl
-    je no_result ; if signs are equal - not alternating
+    je alternating_false   ; Если знаки одинаковые - не чередуются
     
-    ; Update previous sign
+    ; Обновляем предыдущий знак
     mov bl, bh
     
-    add si, 2 ; move to next element
+    ; Следующий элемент
+    add si, 2
     loop check_loop
     
-yes_result:
+alternating_true:
     mov ah, 09h
     lea dx, msg_yes
     int 21h
-    jmp finish
+    jmp procedure_end
 
-no_result:
+alternating_false:
     mov ah, 09h
     lea dx, msg_no
     int 21h
 
-finish:
+procedure_end:
+    ; Вывод перевода строки
     mov ah, 09h
     lea dx, newline
     int 21h
     
+    ; Восстанавливаем регистры в ОБРАТНОМ порядке
+    pop dx
+    pop cx
+    pop bx
+    pop si
     pop bp
-    ret
+    ret 4                  ; Очищаем 2 параметра (4 байта)
 check_sign_alternation endp
 
 ; Get sign of number
 ; Input: AX = number
-; Output: AL = 0 if negative, 1 if positive or zero
+; Output: AL = 0 if negative, AL = 1 if positive or zero
 get_sign proc
     push bx
     test ax, ax
-    jl negative
+    jl negative_sign
     mov al, 1 ; positive or zero
     jmp sign_end
-negative:
+negative_sign:
     mov al, 0 ; negative
 sign_end:
     pop bx
